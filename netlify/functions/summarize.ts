@@ -17,19 +17,19 @@ const OPENROUTER_MODEL = 'nvidia/nemotron-3.5-lightning:free';
 const OPENROUTER_REQUEST_TIMEOUT_MS = 7000;
 
 const prompts: Record<DomainKey, string> = {
-  mind: `Write one report-ready Mind paragraph from the source notes. Output exactly 3 or 4 short, complete sentences. Include no more than 5 distinct activities or patterns; omit minor details. State only facts directly supported by the notes. Describe any documented change over the term, and include the exact phrase "during the term" or "over the last term" once. Place any documented difficulty in a middle sentence using neutral wording. End with a factual area of focus only when the notes support it; do not create a goal, recommendation, plan, prediction, or interpretation. Use he or she pronouns only; never use a name. Use active voice and ensure every sentence has a subject. Do not use: Strong, Demonstrates, Additionally, But, However, Can't, Don't, Cannot, Although, Student, Teacher, Sometimes, Really. Return only the paragraph.`,
-  skills: `Write one report-ready Skills paragraph from the source notes. Output exactly 3 or 4 short, complete sentences. Select no more than 5 practical skills, contributions, or work habits that are directly stated in the notes. Describe documented change over the term without inferring ability, attitude, or future performance. Put any documented difficulty in a middle sentence using neutral wording. End with a factual area of focus only when it is directly supported by the notes; do not create a goal, recommendation, plan, prediction, or interpretation. Use he or she pronouns only; never use a name. Use active voice and ensure every sentence has a subject. Do not use: Strong, Demonstrates, Additionally, But, However, Can't, Don't, Cannot, Although, Student, Teacher, Sometimes, Really. Return only the paragraph.`,
-  demeanour: `Write a report-ready Demeanour summary from the source notes. Output exactly 3 or 4 short, complete sentences in two paragraphs: the first paragraph describes observed behaviour and incidents; the second describes only the mentor support, strategies, or interventions documented in the notes. Keep any documented difficulty neutral and specific. State only facts directly supported by the notes. Do not create a goal, recommendation, plan, prediction, cause, or interpretation. Use he or she pronouns only; never use a name. Use active voice and ensure every sentence has a subject. Do not use: Strong, Demonstrates, Additionally, But, However, Can't, Don't, Cannot, Although, Student, Teacher, Sometimes, Really. Return only the two paragraphs.`,
+  mind: `Summarize this single Mind note from the last term into exactly 3-5 concise, impactful sentences. Do not combine it with any other note. Focus on up to 5 activities or patterns stated in this note. Include "during the term" or "over the last term" where it is supported by the note. Keep documented negative remarks neutral and in the middle. Use he/she pronouns and never names. Use active voice and short, complete sentences. Do not use: Strong, Demonstrates, Additionally, But, However, Can't, Don't, Cannot, Although, Student, Teacher, Sometimes, Really. Do not make assumptions or interpretations. Do not include a development plan. Return only one paragraph.`,
+  skills: `Summarize this single Skills note from the last term into exactly 3-5 concise, impactful sentences. Do not combine it with any other note. Focus on up to 5 practical activities, skills, or work patterns stated in this note. Keep documented negative remarks neutral and in the middle. Use he/she pronouns and never names. Use active voice and short, complete sentences. Do not use: Strong, Demonstrates, Additionally, But, However, Can't, Don't, Cannot, Although, Student, Teacher, Sometimes, Really. Do not make assumptions or interpretations. Do not include a development plan. Return only one paragraph.`,
+  demeanour: `Summarize this single Demeanour note from the last term into exactly 3-5 concise, complete sentences. Do not combine it with any other note. State only observed behaviour, incidents, support, or strategies directly documented in this note. Keep documented negative remarks neutral and in the middle. Use he/she pronouns and never names. Use active voice and short, complete sentences. Do not use: Strong, Demonstrates, Additionally, But, However, Can't, Don't, Cannot, Although, Student, Teacher, Sometimes, Really. Do not make assumptions or interpretations. Do not include a development plan. Return only one paragraph.`,
 };
 
-async function generateDraft(ai: GoogleGenAI, model: string, prompt: string, notes: [string, string]) {
+async function generateDraft(ai: GoogleGenAI, model: string, prompt: string, note: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), GEMINI_REQUEST_TIMEOUT_MS);
 
   try {
     return await ai.models.generateContent({
       model,
-      contents: notes.map(note => ({ role: 'user', parts: [{ text: note }] })),
+      contents: note,
       config: {
         systemInstruction: prompt,
         abortSignal: controller.signal,
@@ -41,7 +41,7 @@ async function generateDraft(ai: GoogleGenAI, model: string, prompt: string, not
   }
 }
 
-async function generateOpenRouterDraft(prompt: string, notes: [string, string]) {
+async function generateOpenRouterDraft(prompt: string, note: string) {
   if (!process.env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is not configured.');
 
   const controller = new AbortController();
@@ -58,7 +58,7 @@ async function generateOpenRouterDraft(prompt: string, notes: [string, string]) 
         model: OPENROUTER_MODEL,
         messages: [
           { role: 'system', content: prompt },
-          ...notes.map(note => ({ role: 'user', content: note })),
+          { role: 'user', content: note },
         ],
         temperature: 0.2,
         top_p: 0.9,
@@ -74,6 +74,16 @@ async function generateOpenRouterDraft(prompt: string, notes: [string, string]) 
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function generateGeminiDrafts(ai: GoogleGenAI, model: string, prompt: string, notes: [string, string]) {
+  const drafts = await Promise.all(notes.map(note => generateDraft(ai, model, prompt, note)));
+  return drafts.map(draft => draft.text?.trim() || '').join('\n\n');
+}
+
+async function generateOpenRouterDrafts(prompt: string, notes: [string, string]) {
+  const drafts = await Promise.all(notes.map(note => generateOpenRouterDraft(prompt, note)));
+  return drafts.join('\n\n');
 }
 
 export const handler: Handler = async event => {
@@ -101,7 +111,7 @@ export const handler: Handler = async event => {
 
   if (testModel === 'openrouter-fallback') {
     try {
-      const summary = await generateOpenRouterDraft(prompts[domain], notes);
+      const summary = await generateOpenRouterDrafts(prompts[domain], notes);
       return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary }) };
     } catch (openRouterError) {
       console.error('Selected OpenRouter test request failed', openRouterError);
@@ -113,23 +123,23 @@ export const handler: Handler = async event => {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     try {
-      const response = await generateDraft(ai, testModel === 'gemini-fallback' ? FALLBACK_MODEL : PRIMARY_MODEL, prompts[domain], notes);
+      const summary = await generateGeminiDrafts(ai, testModel === 'gemini-fallback' ? FALLBACK_MODEL : PRIMARY_MODEL, prompts[domain], notes);
 
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ summary: response.text?.trim() || '' }),
+        body: JSON.stringify({ summary }),
       };
     } catch (primaryError) {
       console.warn(`Primary model ${PRIMARY_MODEL} failed; using Gemini fallback.`, primaryError);
 
       try {
-        const response = await generateDraft(ai, FALLBACK_MODEL, prompts[domain], notes);
+        const summary = await generateGeminiDrafts(ai, FALLBACK_MODEL, prompts[domain], notes);
 
         return {
           statusCode: 200,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ summary: response.text?.trim() || '' }),
+          body: JSON.stringify({ summary }),
         };
       } catch (fallbackError) {
         console.warn('Gemini fallback request failed; using OpenRouter fallback.', fallbackError);
@@ -138,7 +148,7 @@ export const handler: Handler = async event => {
   }
 
   try {
-    const summary = await generateOpenRouterDraft(prompts[domain], notes);
+    const summary = await generateOpenRouterDrafts(prompts[domain], notes);
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },

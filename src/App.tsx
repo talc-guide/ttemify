@@ -41,7 +41,6 @@ const prompts: Record<DomainKey, string> = {
 };
 
 const getOutputParts = (domain: DomainKey, draft: string) => {
-  if (domain !== 'demeanour') return [draft];
   return draft.split(/\n\s*\n/).map(part => part.trim()).filter(Boolean);
 };
 
@@ -156,7 +155,7 @@ export default function App() {
 
         <section className="result-panel">
           <div className="result-header"><div><p className="eyebrow">Output</p><h2>Report-ready draft</h2></div><button className="icon-button" onClick={copySummary} disabled={!summary} title="Copy draft"><Copy size={17} /> <span>{copied ? 'Copied' : 'Copy'}</span></button></div>
-          <div className={summary ? 'result-body has-content' : error ? 'result-body error-state' : 'result-body'}>{summary ? outputParts.map((part, index) => <div className="output-part" key={`${part}-${index}`}><p className="output-label">{activeDomain === 'demeanour' ? index === 0 ? 'Observation' : 'Management' : 'Draft'}</p><p>{part}</p></div>) : error || <><Sparkles size={22} /><p>Your summary will appear here.<br /><span>Review the wording before adding it to the WPM report.</span></p></>}</div>
+          <div className={summary ? 'result-body has-content' : error ? 'result-body error-state' : 'result-body'}>{summary ? outputParts.map((part, index) => <div className="output-part" key={`${part}-${index}`}><p className="output-label">{config.fields[index] || 'Draft'}</p><p>{part}</p></div>) : error || <><Sparkles size={22} /><p>Your summaries will appear here.<br /><span>Review the wording before adding it to the WPM report.</span></p></>}</div>
           <div className="result-footer"><span>{wordCount ? `${wordCount} words` : 'No draft yet'}</span><span>Private workspace · Nothing is stored</span></div>
         </section>
       </main>
