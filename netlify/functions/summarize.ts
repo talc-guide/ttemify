@@ -22,15 +22,16 @@ const prompts: Record<DomainKey, string> = {
   demeanour: `Write a report-ready Demeanour summary from the source notes. Output exactly 3 or 4 short, complete sentences in two paragraphs: the first paragraph describes observed behaviour and incidents; the second describes only the mentor support, strategies, or interventions documented in the notes. Keep any documented difficulty neutral and specific. State only facts directly supported by the notes. Do not create a goal, recommendation, plan, prediction, cause, or interpretation. Use he or she pronouns only; never use a name. Use active voice and ensure every sentence has a subject. Do not use: Strong, Demonstrates, Additionally, But, However, Can't, Don't, Cannot, Although, Student, Teacher, Sometimes, Really. Return only the two paragraphs.`,
 };
 
-async function generateDraft(ai: GoogleGenAI, model: string, contents: string) {
+async function generateDraft(ai: GoogleGenAI, model: string, prompt: string, notes: [string, string]) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), GEMINI_REQUEST_TIMEOUT_MS);
 
   try {
     return await ai.models.generateContent({
       model,
-      contents,
+      contents: notes.map(note => ({ role: 'user', parts: [{ text: note }] })),
       config: {
+        systemInstruction: prompt,
         abortSignal: controller.signal,
         httpOptions: { retryOptions: { attempts: 1 } },
       },
@@ -40,7 +41,7 @@ async function generateDraft(ai: GoogleGenAI, model: string, contents: string) {
   }
 }
 
-async function generateOpenRouterDraft(contents: string) {
+async function generateOpenRouterDraft(prompt: string, notes: [string, string]) {
   if (!process.env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is not configured.');
 
   const controller = new AbortController();
@@ -55,7 +56,10 @@ async function generateOpenRouterDraft(contents: string) {
       },
       body: JSON.stringify({
         model: OPENROUTER_MODEL,
-        messages: [{ role: 'user', content: contents }],
+        messages: [
+          { role: 'system', content: prompt },
+          ...notes.map(note => ({ role: 'user', content: note })),
+        ],
         temperature: 0.2,
         top_p: 0.9,
         max_tokens: 220,
@@ -95,14 +99,9 @@ export const handler: Handler = async event => {
     return { statusCode: 400, body: JSON.stringify({ error: 'A domain and at least one note field are required.' }) };
   }
 
-  const inputLabels = domain === 'demeanour' ? ['Observation Notes', 'Management Notes'] : ['Involvement Notes', 'Mentor Notes'];
-  const source = notes.map((note, index) => `${inputLabels[index]}:\n${note || '(none provided)'}`).join('\n\n');
-
-  const contents = `${prompts[domain]}\n\nSOURCE NOTES:\n${source}`;
-
   if (testModel === 'openrouter-fallback') {
     try {
-      const summary = await generateOpenRouterDraft(contents);
+      const summary = await generateOpenRouterDraft(prompts[domain], notes);
       return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary }) };
     } catch (openRouterError) {
       console.error('Selected OpenRouter test request failed', openRouterError);
@@ -114,7 +113,7 @@ export const handler: Handler = async event => {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     try {
-      const response = await generateDraft(ai, testModel === 'gemini-fallback' ? FALLBACK_MODEL : PRIMARY_MODEL, contents);
+      const response = await generateDraft(ai, testModel === 'gemini-fallback' ? FALLBACK_MODEL : PRIMARY_MODEL, prompts[domain], notes);
 
       return {
         statusCode: 200,
@@ -125,7 +124,7 @@ export const handler: Handler = async event => {
       console.warn(`Primary model ${PRIMARY_MODEL} failed; using Gemini fallback.`, primaryError);
 
       try {
-        const response = await generateDraft(ai, FALLBACK_MODEL, contents);
+        const response = await generateDraft(ai, FALLBACK_MODEL, prompts[domain], notes);
 
         return {
           statusCode: 200,
@@ -139,7 +138,7 @@ export const handler: Handler = async event => {
   }
 
   try {
-    const summary = await generateOpenRouterDraft(contents);
+    const summary = await generateOpenRouterDraft(prompts[domain], notes);
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
