@@ -7,10 +7,11 @@ type TestModel = 'gemini-primary' | 'gemini-fallback' | 'openrouter-fallback';
 type RequestBody = {
   domain?: DomainKey;
   notes?: [string, string];
+  context?: string;
   testModel?: TestModel;
 };
 
-const PRIMARY_MODEL = 'gemini-3-flash-preview';
+const PRIMARY_MODEL = 'gemini-3.5-flash-lite';
 const FALLBACK_MODEL = 'gemini-3.1-flash-lite';
 const GEMINI_REQUEST_TIMEOUT_MS = 8000;
 const OPENROUTER_MODEL = 'nvidia/nemotron-3.5-lightning:free';
@@ -22,14 +23,18 @@ const prompts: Record<DomainKey, string> = {
   demeanour: `Summarize this single Demeanour note from the last term into exactly 3-5 concise, complete sentences. Do not combine it with any other note. State only observed behaviour, incidents, support, or strategies directly documented in this note. Keep documented negative remarks neutral and in the middle. Use he/she pronouns and never names. Use active voice and short, complete sentences. Do not use: Strong, Demonstrates, Additionally, But, However, Can't, Don't, Cannot, Although, Student, Teacher, Sometimes, Really. Do not make assumptions or interpretations. Do not include a development plan. Return only one paragraph.`,
 };
 
-async function generateDraft(ai: GoogleGenAI, model: string, prompt: string, note: string) {
+async function generateDraft(ai: GoogleGenAI, model: string, prompt: string, note: string, context?: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), GEMINI_REQUEST_TIMEOUT_MS);
+
+  const contents = context?.trim()
+    ? [{ role: 'user', parts: [{ text: `Additional Context:\n${context.trim()}` }, { text: note }] }]
+    : note;
 
   try {
     return await ai.models.generateContent({
       model,
-      contents: note,
+      contents,
       config: {
         systemInstruction: prompt,
         abortSignal: controller.signal,
@@ -41,11 +46,17 @@ async function generateDraft(ai: GoogleGenAI, model: string, prompt: string, not
   }
 }
 
-async function generateOpenRouterDraft(prompt: string, note: string) {
+async function generateOpenRouterDraft(prompt: string, note: string, context?: string) {
   if (!process.env.OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY is not configured.');
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPENROUTER_REQUEST_TIMEOUT_MS);
+
+  const messages = [
+    { role: 'system', content: prompt },
+    ...(context?.trim() ? [{ role: 'user', content: `Additional Context:\n${context.trim()}` }] : []),
+    { role: 'user', content: note },
+  ];
 
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -56,10 +67,7 @@ async function generateOpenRouterDraft(prompt: string, note: string) {
       },
       body: JSON.stringify({
         model: OPENROUTER_MODEL,
-        messages: [
-          { role: 'system', content: prompt },
-          { role: 'user', content: note },
-        ],
+        messages,
         temperature: 0.2,
         top_p: 0.9,
         max_tokens: 220,
@@ -76,13 +84,13 @@ async function generateOpenRouterDraft(prompt: string, note: string) {
   }
 }
 
-async function generateGeminiDrafts(ai: GoogleGenAI, model: string, prompt: string, notes: [string, string]) {
-  const drafts = await Promise.all(notes.map(note => generateDraft(ai, model, prompt, note)));
+async function generateGeminiDrafts(ai: GoogleGenAI, model: string, prompt: string, notes: [string, string], context?: string) {
+  const drafts = await Promise.all(notes.map(note => generateDraft(ai, model, prompt, note, context)));
   return drafts.map(draft => draft.text?.trim() || '').join('\n\n');
 }
 
-async function generateOpenRouterDrafts(prompt: string, notes: [string, string]) {
-  const drafts = await Promise.all(notes.map(note => generateOpenRouterDraft(prompt, note)));
+async function generateOpenRouterDrafts(prompt: string, notes: [string, string], context?: string) {
+  const drafts = await Promise.all(notes.map(note => generateOpenRouterDraft(prompt, note, context)));
   return drafts.join('\n\n');
 }
 
@@ -104,6 +112,7 @@ export const handler: Handler = async event => {
 
   const domain = body.domain;
   const notes = body.notes;
+  const context = body.context;
   const testModel = body.testModel;
   if (!domain || !prompts[domain] || !Array.isArray(notes) || notes.length !== 2 || notes.every(note => !note?.trim())) {
     return { statusCode: 400, body: JSON.stringify({ error: 'A domain and at least one note field are required.' }) };
@@ -111,7 +120,7 @@ export const handler: Handler = async event => {
 
   if (testModel === 'openrouter-fallback') {
     try {
-      const summary = await generateOpenRouterDrafts(prompts[domain], notes);
+      const summary = await generateOpenRouterDrafts(prompts[domain], notes, context);
       return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary }) };
     } catch (openRouterError) {
       console.error('Selected OpenRouter test request failed', openRouterError);
@@ -123,7 +132,7 @@ export const handler: Handler = async event => {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     try {
-      const summary = await generateGeminiDrafts(ai, testModel === 'gemini-fallback' ? FALLBACK_MODEL : PRIMARY_MODEL, prompts[domain], notes);
+      const summary = await generateGeminiDrafts(ai, testModel === 'gemini-fallback' ? FALLBACK_MODEL : PRIMARY_MODEL, prompts[domain], notes, context);
 
       return {
         statusCode: 200,
@@ -134,7 +143,7 @@ export const handler: Handler = async event => {
       console.warn(`Primary model ${PRIMARY_MODEL} failed; using Gemini fallback.`, primaryError);
 
       try {
-        const summary = await generateGeminiDrafts(ai, FALLBACK_MODEL, prompts[domain], notes);
+        const summary = await generateGeminiDrafts(ai, FALLBACK_MODEL, prompts[domain], notes, context);
 
         return {
           statusCode: 200,
@@ -148,7 +157,7 @@ export const handler: Handler = async event => {
   }
 
   try {
-    const summary = await generateOpenRouterDrafts(prompts[domain], notes);
+    const summary = await generateOpenRouterDrafts(prompts[domain], notes, context);
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },

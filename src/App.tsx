@@ -51,6 +51,11 @@ export default function App() {
     skills: ['', ''],
     demeanour: ['', ''],
   });
+  const [contexts, setContexts] = useState<Record<DomainKey, string>>({
+    mind: '',
+    skills: '',
+    demeanour: '',
+  });
   const [summary, setSummary] = useState('');
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -59,6 +64,7 @@ export default function App() {
 
   const config = domains[activeDomain];
   const activeNotes = notes[activeDomain];
+  const activeContext = contexts[activeDomain];
   const wordCount = useMemo(() => summary.trim() ? summary.trim().split(/\s+/).length : 0, [summary]);
   const outputParts = getOutputParts(activeDomain, summary);
 
@@ -66,6 +72,13 @@ export default function App() {
     setNotes(previous => ({
       ...previous,
       [activeDomain]: activeNotes.map((note, noteIndex) => noteIndex === index ? value : note) as [string, string],
+    }));
+  };
+
+  const updateContext = (value: string) => {
+    setContexts(previous => ({
+      ...previous,
+      [activeDomain]: value,
     }));
   };
 
@@ -79,7 +92,7 @@ export default function App() {
       const response = await fetch('/.netlify/functions/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: activeDomain, notes: activeNotes, testModel }),
+        body: JSON.stringify({ domain: activeDomain, notes: activeNotes, context: activeContext, testModel }),
       });
       const data = await response.json() as { summary?: string; error?: string };
       if (!response.ok) throw new Error(data.error || 'Unable to create a draft.');
@@ -100,6 +113,7 @@ export default function App() {
 
   const reset = () => {
     setNotes(previous => ({ ...previous, [activeDomain]: ['', ''] }));
+    setContexts(previous => ({ ...previous, [activeDomain]: '' }));
     setSummary('');
     setCopied(false);
     setError('');
@@ -146,6 +160,18 @@ export default function App() {
             </label>
           ))}
         </section>
+
+        <div className="context-field-wrap">
+          <label className="note-field context-field">
+            <span><b>03</b>Additional Context (Optional)</span>
+            <textarea
+              value={activeContext}
+              onChange={event => updateContext(event.target.value)}
+              placeholder="Add optional student background, focus areas, or specific guidance for this section..."
+            />
+            <small>{activeContext.length} characters</small>
+          </label>
+        </div>
 
         <div className="action-row">
           <button className="primary-button" onClick={generateSummary} disabled={isGenerating || (!activeNotes[0].trim() && !activeNotes[1].trim())}>{isGenerating ? <Loader2 className="spin" size={17} /> : <Sparkles size={17} />} {isGenerating ? 'Creating...' : 'Create draft'}</button>
