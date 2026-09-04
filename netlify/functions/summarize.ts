@@ -2,10 +2,12 @@ import { GoogleGenAI } from '@google/genai';
 import type { Handler } from '@netlify/functions';
 
 type DomainKey = 'mind' | 'skills' | 'demeanour';
+type TestModel = 'gemini-primary' | 'gemini-fallback' | 'openrouter-fallback';
 
 type RequestBody = {
   domain?: DomainKey;
   notes?: [string, string];
+  testModel?: TestModel;
 };
 
 const PRIMARY_MODEL = 'gemini-3-flash-preview';
@@ -88,8 +90,12 @@ export const handler: Handler = async event => {
 
   const domain = body.domain;
   const notes = body.notes;
+  const testModel = body.testModel;
   if (!domain || !prompts[domain] || !Array.isArray(notes) || notes.length !== 2 || notes.every(note => !note?.trim())) {
     return { statusCode: 400, body: JSON.stringify({ error: 'A domain and at least one note field are required.' }) };
+  }
+  if (testModel && process.env.NETLIFY) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'Model selection is only available during local development.' }) };
   }
 
   const inputLabels = domain === 'demeanour' ? ['Observation Notes', 'Management Notes'] : ['Involvement Notes', 'Mentor Notes'];
@@ -97,11 +103,21 @@ export const handler: Handler = async event => {
 
   const contents = `${prompts[domain]}\n\nSOURCE NOTES:\n${source}`;
 
+  if (testModel === 'openrouter-fallback') {
+    try {
+      const summary = await generateOpenRouterDraft(contents);
+      return { statusCode: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ summary }) };
+    } catch (openRouterError) {
+      console.error('Selected OpenRouter test request failed', openRouterError);
+      return { statusCode: 502, body: JSON.stringify({ error: 'OpenRouter could not create a draft.' }) };
+    }
+  }
+
   if (process.env.GEMINI_API_KEY) {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
     try {
-      const response = await generateDraft(ai, PRIMARY_MODEL, contents);
+      const response = await generateDraft(ai, testModel === 'gemini-fallback' ? FALLBACK_MODEL : PRIMARY_MODEL, contents);
 
       return {
         statusCode: 200,

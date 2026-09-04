@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { GoogleGenAI } from '@google/genai';
 import { Copy, Loader2, RotateCcw, Sparkles } from 'lucide-react';
 
 type DomainKey = 'mind' | 'skills' | 'demeanour';
+type TestModel = 'gemini-primary' | 'gemini-fallback' | 'openrouter-fallback';
 
 type DomainConfig = {
   label: string;
@@ -12,8 +12,6 @@ type DomainConfig = {
 };
 
 const TALC_LOGO_URL = 'https://static.wixstatic.com/media/87f732_4394f5870beb470bb39567f41989443c~mv2.png/v1/fill/w_466,h_268,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/87f732_4394f5870beb470bb39567f41989443c~mv2.png';
-const PRIMARY_MODEL = 'gemini-3-flash-preview';
-const FALLBACK_MODEL = 'gemini-3.1-flash-lite';
 
 const domains: Record<DomainKey, DomainConfig> = {
   mind: {
@@ -47,23 +45,6 @@ const getOutputParts = (domain: DomainKey, draft: string) => {
   return draft.split(/\n\s*\n/).map(part => part.trim()).filter(Boolean);
 };
 
-async function createLocalDraft(domain: DomainKey, notes: [string, string]) {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured in .env.');
-
-  const inputLabels = domain === 'demeanour' ? ['Observation Notes', 'Management Notes'] : ['Involvement Notes', 'Mentor Notes'];
-  const source = notes.map((note, index) => `${inputLabels[index]}:\n${note || '(none provided)'}`).join('\n\n');
-  const ai = new GoogleGenAI({ apiKey });
-
-  try {
-    const response = await ai.models.generateContent({ model: PRIMARY_MODEL, contents: `${prompts[domain]}\n\nSOURCE NOTES:\n${source}` });
-    return response.text?.trim() || '';
-  } catch {
-    const response = await ai.models.generateContent({ model: FALLBACK_MODEL, contents: `${prompts[domain]}\n\nSOURCE NOTES:\n${source}` });
-    return response.text?.trim() || '';
-  }
-}
-
 export default function App() {
   const [activeDomain, setActiveDomain] = useState<DomainKey>('mind');
   const [notes, setNotes] = useState<Record<DomainKey, [string, string]>>({
@@ -75,6 +56,7 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
+  const [testModel, setTestModel] = useState<TestModel>('gemini-primary');
 
   const config = domains[activeDomain];
   const activeNotes = notes[activeDomain];
@@ -95,15 +77,10 @@ export default function App() {
     setCopied(false);
 
     try {
-      if (import.meta.env.DEV) {
-        setSummary(await createLocalDraft(activeDomain, activeNotes));
-        return;
-      }
-
       const response = await fetch('/.netlify/functions/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: activeDomain, notes: activeNotes }),
+        body: JSON.stringify({ domain: activeDomain, notes: activeNotes, ...(import.meta.env.DEV ? { testModel } : {}) }),
       });
       const data = await response.json() as { summary?: string; error?: string };
       if (!response.ok) throw new Error(data.error || 'Unable to create a draft.');
@@ -173,6 +150,7 @@ export default function App() {
 
         <div className="action-row">
           <button className="primary-button" onClick={generateSummary} disabled={isGenerating || (!activeNotes[0].trim() && !activeNotes[1].trim())}>{isGenerating ? <Loader2 className="spin" size={17} /> : <Sparkles size={17} />} {isGenerating ? 'Creating...' : 'Create draft'}</button>
+          {import.meta.env.DEV && <label className="action-hint">Test model <select value={testModel} onChange={event => setTestModel(event.target.value as TestModel)}><option value="gemini-primary">Gemini primary</option><option value="gemini-fallback">Gemini fallback</option><option value="openrouter-fallback">OpenRouter fallback</option></select></label>}
           <span className="action-hint">Drafts follow the {config.label.toLowerCase()} prompt requirements</span>
         </div>
 
