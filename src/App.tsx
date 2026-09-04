@@ -12,8 +12,8 @@ type DomainConfig = {
 };
 
 const TALC_LOGO_URL = 'https://static.wixstatic.com/media/87f732_4394f5870beb470bb39567f41989443c~mv2.png/v1/fill/w_466,h_268,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/87f732_4394f5870beb470bb39567f41989443c~mv2.png';
-const PRIMARY_MODEL = 'gemma-4-26b-a4b-it';
-const FALLBACK_MODEL = 'gemini-flash-lite-latest';
+const PRIMARY_MODEL = 'gemini-3-flash-preview';
+const FALLBACK_MODEL = 'gemini-3.1-flash-lite';
 
 const domains: Record<DomainKey, DomainConfig> = {
   mind: {

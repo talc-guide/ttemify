@@ -8,8 +8,8 @@ type RequestBody = {
   notes?: [string, string];
 };
 
-const PRIMARY_MODEL = 'gemma-4-26b-a4b-it';
-const FALLBACK_MODEL = 'gemini-flash-lite-latest';
+const PRIMARY_MODEL = 'gemini-3-flash-preview';
+const FALLBACK_MODEL = 'gemini-3.1-flash-lite';
 const GEMINI_REQUEST_TIMEOUT_MS = 8000;
 
 const prompts: Record<DomainKey, string> = {
