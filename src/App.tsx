@@ -80,7 +80,7 @@ export default function App() {
       const response = await fetch('/.netlify/functions/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: activeDomain, notes: activeNotes, ...(import.meta.env.DEV ? { testModel } : {}) }),
+        body: JSON.stringify({ domain: activeDomain, notes: activeNotes, testModel }),
       });
       const data = await response.json() as { summary?: string; error?: string };
       if (!response.ok) throw new Error(data.error || 'Unable to create a draft.');
@@ -150,7 +150,7 @@ export default function App() {
 
         <div className="action-row">
           <button className="primary-button" onClick={generateSummary} disabled={isGenerating || (!activeNotes[0].trim() && !activeNotes[1].trim())}>{isGenerating ? <Loader2 className="spin" size={17} /> : <Sparkles size={17} />} {isGenerating ? 'Creating...' : 'Create draft'}</button>
-          {import.meta.env.DEV && <label className="action-hint">Test model <select value={testModel} onChange={event => setTestModel(event.target.value as TestModel)}><option value="gemini-primary">Gemini primary</option><option value="gemini-fallback">Gemini fallback</option><option value="openrouter-fallback">OpenRouter fallback</option></select></label>}
+          <label className="action-hint">Model <select value={testModel} onChange={event => setTestModel(event.target.value as TestModel)}><option value="gemini-primary">Gemini primary</option><option value="gemini-fallback">Gemini fallback</option><option value="openrouter-fallback">OpenRouter fallback</option></select></label>
           <span className="action-hint">Drafts follow the {config.label.toLowerCase()} prompt requirements</span>
         </div>
 

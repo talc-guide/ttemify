@@ -94,9 +94,6 @@ export const handler: Handler = async event => {
   if (!domain || !prompts[domain] || !Array.isArray(notes) || notes.length !== 2 || notes.every(note => !note?.trim())) {
     return { statusCode: 400, body: JSON.stringify({ error: 'A domain and at least one note field are required.' }) };
   }
-  if (testModel && process.env.NETLIFY) {
-    return { statusCode: 400, body: JSON.stringify({ error: 'Model selection is only available during local development.' }) };
-  }
 
   const inputLabels = domain === 'demeanour' ? ['Observation Notes', 'Management Notes'] : ['Involvement Notes', 'Mentor Notes'];
   const source = notes.map((note, index) => `${inputLabels[index]}:\n${note || '(none provided)'}`).join('\n\n');
