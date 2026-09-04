@@ -42,6 +42,11 @@ const prompts: Record<DomainKey, string> = {
   demeanour: 'Summarize the supplied Demeanour notes into 3-4 concise sentences split into exactly two paragraphs. Paragraph 1 must summarize observed behavioral patterns and key incidents. Paragraph 2 must summarize mentor support, strategies, or interventions. Do not include development plans. Integrate negative remarks neutrally. Use only he/she pronouns and never names. Use active voice and short sentences. Do not use these words: Strong, Demonstrates, Additionally, But, However, Can\'t, Don\'t, Cannot, Although, Student, Teacher, Sometimes. Do not make assumptions or interpretations. Return only the two paragraphs.',
 };
 
+const getOutputParts = (domain: DomainKey, draft: string) => {
+  if (domain !== 'demeanour') return [draft];
+  return draft.split(/\n\s*\n/).map(part => part.trim()).filter(Boolean);
+};
+
 async function createLocalDraft(domain: DomainKey, notes: [string, string]) {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured in .env.');
@@ -74,6 +79,7 @@ export default function App() {
   const config = domains[activeDomain];
   const activeNotes = notes[activeDomain];
   const wordCount = useMemo(() => summary.trim() ? summary.trim().split(/\s+/).length : 0, [summary]);
+  const outputParts = getOutputParts(activeDomain, summary);
 
   const updateNote = (index: 0 | 1, value: string) => {
     setNotes(previous => ({
@@ -111,7 +117,7 @@ export default function App() {
 
   const copySummary = async () => {
     if (!summary) return;
-    await navigator.clipboard.writeText(summary);
+    await navigator.clipboard.writeText(outputParts.join('\n\n'));
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
   };
@@ -172,7 +178,7 @@ export default function App() {
 
         <section className="result-panel">
           <div className="result-header"><div><p className="eyebrow">Output</p><h2>Report-ready draft</h2></div><button className="icon-button" onClick={copySummary} disabled={!summary} title="Copy draft"><Copy size={17} /> <span>{copied ? 'Copied' : 'Copy'}</span></button></div>
-          <div className={summary ? 'result-body has-content' : error ? 'result-body error-state' : 'result-body'}>{summary || error || <><Sparkles size={22} /><p>Your summary will appear here.<br /><span>Review the wording before adding it to the WPM report.</span></p></>}</div>
+          <div className={summary ? 'result-body has-content' : error ? 'result-body error-state' : 'result-body'}>{summary ? outputParts.map((part, index) => <div className="output-part" key={`${part}-${index}`}><p className="output-label">{activeDomain === 'demeanour' ? index === 0 ? 'Observation' : 'Management' : 'Draft'}</p><p>{part}</p></div>) : error || <><Sparkles size={22} /><p>Your summary will appear here.<br /><span>Review the wording before adding it to the WPM report.</span></p></>}</div>
           <div className="result-footer"><span>{wordCount ? `${wordCount} words` : 'No draft yet'}</span><span>Private workspace · Nothing is stored</span></div>
         </section>
       </main>

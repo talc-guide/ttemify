@@ -66,6 +66,9 @@ textarea::placeholder { color: #b0b9b2; }
 .result-body p { margin: 0; font-size: 13px; line-height: 1.7; }
 .result-body p span { color: #bcc4bd; font-size: 11px; }
 .result-body.has-content { display: block; color: #3d5148; font-size: 15px; line-height: 1.85; text-align: left; white-space: pre-line; }
+.output-part + .output-part { margin-top: 23px; padding-top: 20px; border-top: 1px solid #e4e9e2; }
+.output-part p { margin: 0; }
+.output-part .output-label { margin-bottom: 7px; color: #637b6e; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .result-body.error-state { color: #a04432; }
 .result-footer { padding: 13px 25px; border-top: 1px solid #e4e9e2; color: #a0aaa2; font-size: 10px; letter-spacing: .02em; }
 footer { padding: 0 20px 30px; color: #9ca69f; font-size: 11px; text-align: center; }
