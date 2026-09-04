@@ -58,6 +58,7 @@ export default function App() {
   });
   const [summary, setSummary] = useState('');
   const [copied, setCopied] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState<DomainKey | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
   const [testModel, setTestModel] = useState<TestModel>('gemini-primary');
@@ -111,6 +112,12 @@ export default function App() {
     window.setTimeout(() => setCopied(false), 1800);
   };
 
+  const copyPrompt = async (domain: DomainKey) => {
+    await navigator.clipboard.writeText(prompts[domain]);
+    setCopiedPrompt(domain);
+    window.setTimeout(() => setCopiedPrompt(current => current === domain ? null : current), 1800);
+  };
+
   const reset = () => {
     setNotes(previous => ({ ...previous, [activeDomain]: ['', ''] }));
     setContexts(previous => ({ ...previous, [activeDomain]: '' }));
@@ -138,10 +145,20 @@ export default function App() {
 
         <nav className="domain-tabs" aria-label="Report domains">
           {(Object.keys(domains) as DomainKey[]).map(domain => (
-            <button key={domain} className={activeDomain === domain ? 'domain-tab active' : 'domain-tab'} onClick={() => { setActiveDomain(domain); setSummary(''); setCopied(false); }}>
-              <span>{domains[domain].label}</span>
-              <small>{domain === 'demeanour' ? '03' : domain === 'mind' ? '01' : '02'}</small>
-            </button>
+            <div className={activeDomain === domain ? 'domain-tab-group active' : 'domain-tab-group'} key={domain}>
+              <button className="domain-tab" onClick={() => { setActiveDomain(domain); setSummary(''); setCopied(false); }}>
+                <span>{domains[domain].label}</span>
+                <small>{domain === 'demeanour' ? '03' : domain === 'mind' ? '01' : '02'}</small>
+              </button>
+              <button
+                className="copy-prompt-button"
+                onClick={() => void copyPrompt(domain)}
+                title={`Copy ${domains[domain].label} prompt`}
+                aria-label={`Copy ${domains[domain].label} prompt`}
+              >
+                <Copy size={14} /> <span>{copiedPrompt === domain ? 'Copied' : 'Prompt'}</span>
+              </button>
+            </div>
           ))}
         </nav>
 

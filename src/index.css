@@ -31,10 +31,15 @@ h1 { margin-bottom: 16px; color: #263d35; font-size: 36px; font-weight: 600; let
 h1 em { color: inherit; font-style: normal; font-weight: 600; }
 .intro-copy { max-width: 560px; margin-bottom: 36px; color: #68766e; font-size: 14px; line-height: 1.55; }
 .domain-tabs { display: flex; gap: 2px; margin-bottom: 36px; padding: 3px; border: 1px solid #d6ddd6; border-radius: 6px; background: #e9ede9; }
-.domain-tab { flex: 1; display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: #77847c; font-size: 13px; font-weight: 600; text-align: left; }
+.domain-tab-group { flex: 1; display: flex; align-items: stretch; min-width: 0; border: 1px solid transparent; border-radius: 4px; }
+.domain-tab { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; padding: 11px 8px 11px 14px; border: 0; background: transparent; color: #77847c; font-size: 13px; font-weight: 600; text-align: left; }
 .domain-tab small { color: #a2afa5; font-size: 10px; letter-spacing: .1em; }
-.domain-tab.active { border-color: #cbd8cb; background: #fff; color: #214b3f; }
-.domain-tab.active small { color: #a27858; }
+.domain-tab-group.active { border-color: #cbd8cb; background: #fff; color: #214b3f; }
+.domain-tab-group.active .domain-tab { color: #214b3f; }
+.domain-tab-group.active .domain-tab small { color: #a27858; }
+.copy-prompt-button { display: inline-flex; align-items: center; gap: 4px; padding: 0 10px 0 7px; border: 0; border-left: 1px solid #d6ddd6; background: transparent; color: #7c8c82; font-size: 10px; font-weight: 700; }
+.copy-prompt-button:hover { color: #315c4d; }
+.domain-tab-group.active .copy-prompt-button { border-left-color: #d9e3d8; color: #527365; }
 .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
 h2 { margin-bottom: 0; color: #24433a; font-size: 22px; font-weight: 600; }
 .text-button { display: inline-flex; align-items: center; gap: 7px; border: 0; background: transparent; color: #8b7563; font-size: 12px; }
@@ -83,7 +88,9 @@ footer span { padding: 0 6px; color: #c29a79; }
 	h1 { font-size: 43px; }
 	.intro-copy { margin-bottom: 38px; }
 	.domain-tabs { margin-bottom: 38px; }
-	.domain-tab { padding: 12px 10px; font-size: 12px; }
+	.domain-tab { padding: 12px 6px 12px 10px; font-size: 12px; }
+	.copy-prompt-button { padding: 0 7px 0 5px; }
+	.copy-prompt-button span { display: none; }
 	.section-heading { align-items: start; }
 	.notes-grid { grid-template-columns: 1fr; }
 	.note-field textarea { min-height: 130px; }
