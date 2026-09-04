@@ -84,13 +84,15 @@ async function generateOpenRouterDraft(prompt: string, note: string, context?: s
   }
 }
 
-async function generateGeminiDrafts(ai: GoogleGenAI, model: string, prompt: string, notes: [string, string], context?: string) {
-  const drafts = await Promise.all(notes.map(note => generateDraft(ai, model, prompt, note, context)));
+async function generateGeminiDrafts(ai: GoogleGenAI, model: string, prompt: string, notes: readonly string[], context?: string) {
+  const populatedNotes = notes.filter(note => note.trim());
+  const drafts = await Promise.all(populatedNotes.map(note => generateDraft(ai, model, prompt, note, context)));
   return drafts.map(draft => draft.text?.trim() || '').join('\n\n');
 }
 
-async function generateOpenRouterDrafts(prompt: string, notes: [string, string], context?: string) {
-  const drafts = await Promise.all(notes.map(note => generateOpenRouterDraft(prompt, note, context)));
+async function generateOpenRouterDrafts(prompt: string, notes: readonly string[], context?: string) {
+  const populatedNotes = notes.filter(note => note.trim());
+  const drafts = await Promise.all(populatedNotes.map(note => generateOpenRouterDraft(prompt, note, context)));
   return drafts.join('\n\n');
 }
 
